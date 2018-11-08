@@ -1,0 +1,18 @@
+{{- if .Values.server.persistentVolume.storageClass }}
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.server.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ .Values.server.persistentVolume.storageClass }}
+provisioner: {{ .Values.server.persistentVolume.provisioner }}
+parameters:
+  type: {{ .Values.server.persistentVolume.storageType }}
+  {{- if .Values.server.persistentVolume.zone }}
+  zone: {{ .Values.server.persistentVolume.zone }}
+  {{- end }}
+{{- end }}
