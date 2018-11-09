@@ -77,6 +77,8 @@ The command removes all the Kubernetes components associated with the chart and 
 | `sidecar.datasources.enabled`   | Enabled the cluster wide search for datasources and adds/updates/deletes them in grafana |`false`       |
 | `sidecar.datasources.label`     | Label that config maps with datasources should have to be added | `false`                               |
 | `smtp.existingSecret`           | The name of an existing secret containing the SMTP credentials, this must have the keys `user` and `password`. | `""` |
+| `tls.enabled`                   | Whether use of TLS is enabled to secure endpoint of Grafana | `false`                                   |
+| `tls.certDirectory`             | Directory on container where TLS certificates will be mounts | `/etc/tls`                               |
 
 ## Sidecar for dashboards
 

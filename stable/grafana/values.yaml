@@ -280,3 +280,4 @@ sidecar:
 
 tls:
   enabled: false
+  certDirectory: /etc/tls
