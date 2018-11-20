@@ -22,6 +22,14 @@ data:
 {{- if $root.Values.extraScrapeConfigs }}
 {{ tpl $root.Values.extraScrapeConfigs $root | indent 4 }}
 {{- end -}}
+
+{{- if $root.Values.serverFiles.remoteWrite }}
+{{- if $root.Values.serverFiles.remoteWrite.enabled }}
+    remote_write:
+      - url: http://{{ $root.Values.serverFiles.remoteWrite.url }}:{{ $root.Values.serverFiles.remoteWrite.port }}/api/v1/prom/write?u={{ $root.Values.serverFiles.remoteWrite.username }}&p={{ $root.Values.serverFiles.remoteWrite.password }}&db={{ $root.Values.serverFiles.remoteWrite.database }}
+{{- end -}}
+{{- end -}}
+
 {{- if $root.Values.alertmanager.enabled }}
     alerting:
       alertmanagers:

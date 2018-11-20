@@ -837,6 +837,15 @@ serverFiles:
 
   rules: {}
 
+  ## Remote write configuration (for Graphite, OpenTSDB, or InfluxDB)
+  remoteWrite: {}
+    # enabled: true
+    # url: influxdb.kube-monitoring.svc.cluster.local
+    # port: 8086
+    # database: prometheus
+    # username: admin
+    # password: password
+
   prometheus.yml:
     rule_files:
       - /etc/config/rules
