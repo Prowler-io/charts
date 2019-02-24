@@ -1,0 +1,61 @@
+{{- if (.Values.thanos.enabled) (.Values.thanos.query.enabled) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-query
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: thanos-query
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.thanos.query.replicas }}
+  selector:
+    matchLabels:
+      app: {{ template "prometheus.name" . }}
+      component: thanos-query
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: thanos-query
+        release: {{ .Release.Name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10902"
+    spec:
+      containers:
+      - name: thanos-query
+        image: "{{ .Values.thanos.image.repository }}:{{ .Values.thanos.image.tag }}"
+        imagePullPolicy: "{{ .Values.thanos.image.pullPolicy }}"
+        env:
+        - name: STORE_SD_FILE
+          value: /etc/store-endpoints/thanos-sd.yaml
+        args:
+        - "query"
+        - "--log.level=debug"
+        - "--cluster.disable"
+        - "--query.replica-label=replica"
+        - "--store.sd-files=$(STORE_SD_FILE)" # gRPC Store API Address of the Sidecar or Store Gateway to query
+        - "--store.sd-interval=5m"
+        - "--query.auto-downsampling" # Enable automatic adjustment (step / 5) to what source of data should be used in store gateways if no max_source_resolution param is specified.
+      {{- range $key, $value := .Values.thanos.query.extraArgs }}
+        - --{{ $key }}={{ $value }}
+      {{- end }}
+        ports:
+        - name: query-http
+          containerPort: 10902
+        volumeMounts:
+        - name: store-sd
+          mountPath: /etc/store-endpoints
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: http
+      volumes:
+      - name: store-sd
+        configMap:
+          name: store-sd
+{{- end }}

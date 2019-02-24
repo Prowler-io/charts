@@ -1,0 +1,76 @@
+{{- if and (.Values.thanos.enabled) (.Values.thanos.store.enabled) }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: thanos-store
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: thanos-store
+spec:
+  serviceName: "thanos-store"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "prometheus.name" . }}
+      component: thanos-store
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: thanos-store
+        release: {{ .Release.Name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10902"
+    spec:
+      containers:
+      - name: thanos-store
+        image: "{{ .Values.thanos.image.repository }}:{{ .Values.thanos.image.tag }}"
+        imagePullPolicy: "{{ .Values.thanos.image.pullPolicy }}"
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /creds/gcs-credentials.json
+        - name: GOOGLE_BUCKET
+          value: /etc/store/gcs-config.yaml
+        args:
+        - "store"
+        - "--log.level=debug"
+        - "--data-dir=/var/thanos/store"
+        - "--cluster.disable"
+        - "--http-address=0.0.0.0:10902" # Listen host:port for HTTP endpoints
+        - "--grpc-address=0.0.0.0:10901" # Listen ip:port address for gRPC endpoints (StoreAPI). Make sure this address is routable from other components if you use gossip, 'grpc-advertise-address' is empty and you require cross-node connection.
+        - "--objstore.config-file=$(GOOGLE_BUCKET)"
+      {{- range $key, $value := .Values.thanos.store.extraArgs }}
+        - --{{ $key }}={{ $value }}
+      {{- end }}
+        ports:
+        - name: store-http
+          containerPort: 10902
+        - name: store-grpc
+          containerPort: 10901
+        volumeMounts:
+        - name: gcs-bucket
+          mountPath: /etc/store
+          readOnly: true
+        - name: gcs-credentials
+          mountPath: /creds/
+          readOnly: true
+        - name: data
+          mountPath: /var/thanos/store
+      volumes:
+      - name: data
+        emptyDir: {}
+      - name: gcs-bucket
+        configMap:
+          # NOTE: gcs-bucket with single file gcs-config.yaml (GCS bucket) is required.
+          name: gcs-bucket
+      - name: gcs-credentials
+        secret:
+          defaultMode: 420
+          # NOTE: gcs-credentials secret with single file gcs-credentials.json (GCS service account) is required.
+          secretName: gcs-credentials
+{{- end }}

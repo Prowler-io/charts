@@ -1,0 +1,61 @@
+{{- if .Values.thanos.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+{{- if .Values.thanos.sidecar.service.annotations }}
+  annotations:
+{{ toYaml .Values.thanos.sidecar.service.annotations | indent 4 }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.server.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- if .Values.server.service.labels }}
+{{ toYaml .Values.server.service.labels | indent 4 }}
+{{- end }}
+  name: "{{ template "prometheus.server.fullname" . }}-0"
+spec:
+{{- if .Values.thanos.sidecar.service.clusterIP }}
+  clusterIP: {{ .Values.thanos.sidecar.service.clusterIP }}
+{{- end }}
+{{- if .Values.thanos.sidecar.service.externalIPs }}
+  externalIPs:
+{{ toYaml .Values.thanos.sidecar.service.externalIPs | indent 4 }}
+{{- end }}
+{{- if .Values.thanos.sidecar.service.loadBalancerIP }}
+  loadBalancerIP: {{ index .Values.thanos.sidecar.service.loadBalancerIP 0 }}
+{{- end }}
+{{- if .Values.thanos.sidecar.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+  {{- range $cidr := .Values.thanos.sidecar.service.loadBalancerSourceRanges }}
+    - {{ $cidr }}
+  {{- end }}
+{{- end }}
+  ports:
+  - name: http-prometheus
+    port: {{ .Values.server.service.servicePort }}
+    protocol: TCP
+    targetPort: prom-http
+  {{- if .Values.server.service.nodePort }}
+    nodePort: {{ .Values.server.service.nodePort }}
+  {{- end }}
+  - name: http-sidecar
+    port: 10902
+    protocol: TCP
+    targetPort: sidecar-http
+  {{- if .Values.thanos.sidecar.service.nodePort }}
+    nodePort: {{ .Values.thanos.sidecar.service.nodePort }}
+  {{- end }}
+  - name: grpc-sidecar
+    port: 10901
+    protocol: TCP
+    targetPort: sidecar-grpc
+  {{- if .Values.thanos.sidecar.service.nodePort }}
+    nodePort: {{ .Values.thanos.sidecar.service.nodePort }}
+  {{- end }}
+  selector:
+    statefulset.kubernetes.io/pod-name: "{{ template "prometheus.name" . }}-0"
+  type: "{{ .Values.thanos.sidecar.service.type }}"
+{{- end }}

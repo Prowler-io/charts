@@ -1,3 +1,4 @@
+{{- if not .Values.thanos.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -33,10 +34,10 @@ spec:
   {{- end }}
 {{- end }}
   ports:
-    - name: http
+    - name: http-prometheus
       port: {{ .Values.server.service.servicePort }}
       protocol: TCP
-      targetPort: 9090
+      targetPort: prom-http
     {{- if .Values.server.service.nodePort }}
       nodePort: {{ .Values.server.service.nodePort }}
     {{- end }}
@@ -45,3 +46,4 @@ spec:
     component: "{{ .Values.server.name }}"
     release: {{ .Release.Name }}
   type: "{{ .Values.server.service.type }}"
+{{- end }}

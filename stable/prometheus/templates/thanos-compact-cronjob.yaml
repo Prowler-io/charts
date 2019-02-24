@@ -1,0 +1,74 @@
+{{- if and (.Values.thanos.enabled) (.Values.thanos.compact.enabled) }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: thanos-compact
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: thanos-compact
+spec:
+  schedule: {{ .Values.thanos.compact.schedule }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "10902"
+          labels:
+            app: {{ template "prometheus.name" . }}
+            component: thanos-compact
+            release: {{ .Release.Name }}
+        spec:
+          containers:
+          - name: thanos-compact
+            image: "{{ .Values.thanos.image.repository }}:{{ .Values.thanos.image.tag }}"
+            imagePullPolicy: "{{ .Values.thanos.image.pullPolicy }}"
+            env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /creds/gcs-credentials.json
+            - name: GOOGLE_BUCKET
+              value: /etc/store/gcs-config.yaml
+            args:
+            - "compact"
+            - "--log.level=debug"
+            - "--data-dir=/tmp/thanos-compact"
+            - "--objstore.config-file=$(GOOGLE_BUCKET)"
+            - "--http-address=0.0.0.0:10902" # Listen host:port for HTTP endpoints
+            - "--sync-delay=30m"
+          {{- range $key, $value := .Values.thanos.compact.extraArgs }}
+            - --{{ $key }}={{ $value }}
+          {{- end }}
+            ports:
+            - name: compact-http
+              containerPort: 10902
+            volumeMounts:
+            - name: gcs-bucket
+              mountPath: /etc/store
+              readOnly: true
+            - name: gcs-credentials
+              mountPath: /creds/
+              readOnly: true
+            - name: data
+              mountPath: /tmp/thanos-compact
+          restartPolicy: Never
+          volumes:
+          - name: data
+            # This GCE PD must already exist.
+            gcePersistentDisk:
+              pdName: {{ .Values.thanos.compact.gcePersistentDiskName }}
+              fsType: ext4
+          - name: gcs-bucket
+            configMap:
+              # NOTE: gcs-bucket with single file gcs-config.yaml (GCS bucket) is required.
+              name: gcs-bucket
+          - name: gcs-credentials
+            secret:
+              defaultMode: 420
+              # NOTE: gcs-credentials secret with single file gcs-credentials.json (GCS service account) is required.
+              secretName: gcs-credentials
+{{- end }}

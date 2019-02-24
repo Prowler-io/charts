@@ -1,3 +1,4 @@
+{{- if not .Values.thanos.enabled }}
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -102,7 +103,8 @@ spec:
             - --web.enable-admin-api
           {{- end }}
           ports:
-            - containerPort: 9090
+            - name: prom-http
+              containerPort: 9090
           readinessProbe:
             httpGet:
               path: {{ .Values.server.prefixURL }}/-/ready
@@ -198,3 +200,4 @@ spec:
           configMap:
             name: {{ .configMap }}
       {{- end }}
+{{- end }}

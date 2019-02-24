@@ -1,0 +1,54 @@
+{{- if and (.Values.thanos.enabled) (.Values.thanos.store.enabled) }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: thanos-store
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: thanos-store-gateway
+{{- with .Values.thanos.store.service.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  externalTrafficPolicy: Cluster
+{{- if .Values.thanos.store.service.clusterIP }}
+  clusterIP: {{ .Values.thanos.store.service.clusterIP }}
+{{- end }}
+{{- if .Values.thanos.store.service.externalIPs }}
+  externalIPs:
+{{ toYaml .Values.thanos.store.service.externalIPs | indent 4 }}
+{{- end }}
+{{- if .Values.thanos.store.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.thanos.store.service.loadBalancerIP }}
+{{- end }}
+{{- if .Values.thanos.store.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+  {{- range $cidr := .Values.thanos.store.service.loadBalancerSourceRanges }}
+    - {{ $cidr }}
+  {{- end }}
+{{- end }}
+  ports:
+  - name: http-store
+    port: 10902
+    protocol: TCP
+    targetPort: store-http
+  {{- if .Values.thanos.store.service.nodePort }}
+    nodePort: {{ .Values.thanos.store.service.nodePort }}
+  {{- end }}
+  - name: grpc-store
+    port: 10901
+    protocol: TCP
+    targetPort: store-grpc
+  {{- if .Values.thanos.store.service.nodePort }}
+    nodePort: {{ .Values.thanos.store.service.nodePort }}
+  {{- end }}
+  selector:
+    app: {{ template "prometheus.name" . }}
+    component: thanos-store
+    release: {{ .Release.Name }}
+  type: {{ .Values.thanos.store.service.type }}
+{{- end }}

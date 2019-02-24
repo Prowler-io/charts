@@ -1,0 +1,271 @@
+{{- if .Values.thanos.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.server.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "prometheus.name" . }}
+spec:
+  serviceName: {{ template "prometheus.name" . }}
+  replicas: 2
+  selector:
+    matchLabels:
+      app: {{ template "prometheus.name" . }}
+      component: "{{ .Values.server.name }}"
+      release: {{ .Release.Name }}
+  podManagementPolicy: OrderedReady
+  template:
+    metadata:
+    {{- if .Values.server.podAnnotations }}
+      annotations:
+{{ toYaml .Values.server.podAnnotations | indent 8 }}
+    {{- end }}
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: "{{ .Values.server.name }}"
+        release: {{ .Release.Name }}
+    spec:
+{{- if or (.Values.server.affinity) (.Values.thanos.enabled) }}
+      affinity:
+    {{- if .Values.thanos.enabled }}
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ template "prometheus.name" . }}-{{ .Values.server.name }}
+            topologyKey: kubernetes.io/hostname
+    {{- end }}
+    {{- if .Values.server.affinity }}
+{{ toYaml .Values.server.affinity | indent 6 }}
+    {{- end }}
+{{- end }}
+{{- if .Values.server.priorityClassName }}
+      priorityClassName: "{{ .Values.server.priorityClassName }}"
+{{- end }}
+{{- if .Values.server.schedulerName }}
+      schedulerName: "{{ .Values.server.schedulerName }}"
+{{- end }}
+      serviceAccountName: {{ template "prometheus.serviceAccountName.server" . }}
+      {{- if .Values.initChownData.enabled }}
+      initContainers:
+      - name: "{{ .Values.initChownData.name }}"
+        image: "{{ .Values.initChownData.image.repository }}:{{ .Values.initChownData.image.tag }}"
+        imagePullPolicy: "{{ .Values.initChownData.image.pullPolicy }}"
+        resources:
+{{ toYaml .Values.initChownData.resources | indent 12 }}
+        # 65534 is the nobody user that prometheus uses.
+        command: ["chown", "-R", "65534:65534", "{{ .Values.server.persistentVolume.mountPath }}"]
+        volumeMounts:
+        - name: storage-volume
+          mountPath: {{ .Values.server.persistentVolume.mountPath }}
+          subPath: "{{ .Values.server.persistentVolume.subPath }}"
+      {{- end }}
+      containers:
+      - name: {{ template "prometheus.name" . }}-{{ .Values.server.name }}
+        image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+        imagePullPolicy: "{{ .Values.server.image.pullPolicy }}"
+        args:
+        {{- if .Values.server.retention }}
+          - --storage.tsdb.retention={{ .Values.server.retention }}
+        {{- end }}
+          - --config.file=/etc/config-shared/prometheus.yml
+          - --storage.tsdb.path={{ .Values.server.persistentVolume.mountPath }}
+          - --web.console.libraries=/etc/prometheus/console_libraries
+          - --web.console.templates=/etc/prometheus/consoles
+          - --web.enable-lifecycle
+        {{- range $key, $value := .Values.server.extraArgs }}
+          - --{{ $key }}={{ $value }}
+        {{- end }}
+        {{- if .Values.server.baseURL }}
+          - --web.external-url={{ .Values.server.baseURL }}
+        {{- end }}
+        {{- if .Values.server.enableAdminApi }}
+          - --web.enable-admin-api
+        {{- end }}
+        ports:
+        - name: prom-http
+          containerPort: 9090
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.server.prefixURL }}/-/ready
+            port: 9090
+          initialDelaySeconds: 30
+          timeoutSeconds: 30
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.server.prefixURL }}/-/healthy
+            port: 9090
+          initialDelaySeconds: 30
+          timeoutSeconds: 30
+        resources:
+{{ toYaml .Values.server.resources | indent 12 }}
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+        - name: config-volume-shared
+          mountPath: /etc/config-shared
+        - name: storage-volume
+          mountPath: {{ .Values.server.persistentVolume.mountPath }}
+          subPath: "{{ .Values.server.persistentVolume.subPath }}"
+      {{- range .Values.server.extraHostPathMounts }}
+        - name: {{ .name }}
+          mountPath: {{ .mountPath }}
+          subPath: {{ .subPath }}
+          readOnly: {{ .readOnly }}
+      {{- end }}
+      {{- range .Values.server.extraConfigmapMounts }}
+        - name: {{ $.Values.server.name }}-{{ .name }}
+          mountPath: {{ .mountPath }}
+          subPath: {{ .subPath }}
+          readOnly: {{ .readOnly }}
+      {{- end }}
+      {{- range .Values.server.extraSecretMounts }}
+        - name: {{ .name }}
+          mountPath: {{ .mountPath }}
+          subPath: {{ .subPath }}
+          readOnly: {{ .readOnly }}
+      {{- end }}
+      - name: thanos-sidecar
+        image: "{{ .Values.thanos.image.repository }}:{{ .Values.thanos.image.tag }}"
+        imagePullPolicy: "{{ .Values.thanos.image.pullPolicy }}"
+      {{- if .Values.thanos.objStore.gcsBucketName }}
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: GOOGLE_BUCKET
+          value: /etc/store/gcs-config.yaml
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /creds/gcs-credentials.json
+      {{- end }}
+        args:
+        - "sidecar"
+        - "--log.level=debug"
+        - "--tsdb.path={{ .Values.server.persistentVolume.mountPath }}"
+        - "--prometheus.url=http://127.0.0.1:9090"
+        - "--cluster.disable"
+        - "--reloader.config-file=/etc/config/prometheus.yml"
+        - "--reloader.config-envsubst-file=/etc/config-shared/prometheus.yml"
+        - "--http-address=0.0.0.0:10902" # Listen host:port for HTTP endpoints
+        - "--grpc-address=0.0.0.0:10901" # Listen ip:port address for gRPC endpoints (StoreAPI). Make sure this address is routable from other components if you use gossip, 'grpc-advertise-address' is empty and you require cross-node connection.
+      {{- if .Values.thanos.objStore.gcsBucketName }}
+        - "--objstore.config-file=$(GOOGLE_BUCKET)"
+      {{- end }}
+      {{- range $key, $value := .Values.thanos.sidecar.extraArgs }}
+        - --{{ $key }}={{ $value }}
+      {{- end }}
+        ports:
+        - name: sidecar-http
+          containerPort: 10902
+        - name: sidecar-grpc
+          containerPort: 10901
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+        - name: config-volume-shared
+          mountPath: /etc/config-shared
+        - name: storage-volume
+          mountPath: {{ .Values.server.persistentVolume.mountPath }}
+      {{- if .Values.thanos.objStore.gcsBucketName }}
+        - name: gcs-bucket
+          mountPath: /etc/store
+        - name: gcs-credentials
+          mountPath: /creds/
+      {{- end }}
+    {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+       {{ toYaml .Values.imagePullSecrets | indent 2 }}
+    {{- end }}
+    {{- if .Values.server.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.server.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.server.securityContext }}
+      securityContext:
+{{ toYaml .Values.server.securityContext | indent 8 }}
+    {{- end }}
+    {{- if .Values.server.tolerations }}
+      tolerations:
+{{ toYaml .Values.server.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.server.affinity }}
+      affinity:
+{{ toYaml .Values.server.affinity | indent 8 }}
+    {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
+      volumes:
+      - name: config-volume
+        configMap:
+          name: {{ if .Values.server.configMapOverrideName }}{{ .Release.Name }}-{{ .Values.server.configMapOverrideName }}{{- else }}{{ template "prometheus.server.fullname" . }}{{- end }}
+      - name: config-volume-shared
+        emptyDir: {}
+    {{- if .Values.thanos.objStore.gcsBucketName }}
+      - name: gcs-bucket
+        configMap:
+          # NOTE: gcs-bucket with single file gcs-config.yaml (GCS bucket) is required.
+          name: gcs-bucket
+      - name: gcs-credentials
+        secret:
+          defaultMode: 420
+          # NOTE: gcs-credentials secret with single file gcs-credentials.json (GCS service account) is required.
+          secretName: gcs-credentials
+    {{- end }}
+    {{- range .Values.server.extraHostPathMounts }}
+      - name: {{ .name }}
+        hostPath:
+          path: {{ .hostPath }}
+    {{- end }}
+    {{- range .Values.configmapReload.extraConfigmapMounts }}
+      - name: {{ $.Values.configmapReload.name }}-{{ .name }}
+        configMap:
+          name: {{ .configMap }}
+    {{- end }}
+    {{- range .Values.server.extraConfigmapMounts }}
+      - name: {{ $.Values.server.name }}-{{ .name }}
+        configMap:
+          name: {{ .configMap }}
+    {{- end }}
+    {{- range .Values.server.extraSecretMounts }}
+      - name: {{ .name }}
+        secret:
+          secretName: {{ .secretName }}
+    {{- end }}
+    {{- range .Values.configmapReload.extraConfigmapMounts }}
+      - name: {{ .name }}
+        configMap:
+          name: {{ .configMap }}
+    {{- end }}
+{{- if .Values.server.persistentVolume.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: storage-volume
+      {{- if .Values.server.persistentVolume.annotations }}
+      annotations:
+{{ toYaml .Values.server.persistentVolume.annotations | indent 10 }}
+      {{- end }}
+    spec:
+      accessModes:
+{{ toYaml .Values.server.persistentVolume.accessModes | indent 10 }}
+      resources:
+        requests:
+          storage: "{{ .Values.server.persistentVolume.size }}"
+    {{- if .Values.server.persistentVolume.storageClass }}
+    {{- if (eq "-" .Values.server.persistentVolume.storageClass) }}
+      storageClassName: ""
+    {{- else }}
+      storageClassName: "{{ .Values.server.persistentVolume.storageClass }}"
+    {{- end }}
+    {{- end }}
+{{- else }}
+      - name: storage-volume
+        emptyDir: {}
+{{- end }}
+{{- end }}

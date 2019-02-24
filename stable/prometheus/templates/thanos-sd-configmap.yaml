@@ -1,0 +1,12 @@
+{{- if and (.Values.thanos.enabled) (.Values.thanos.query.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: store-sd
+data:
+  thanos-sd.yaml: |-
+    - targets:
+    {{- range .Values.thanos.query.endpoints }}
+      - "{{ . | title }}:10901"
+    {{- end }}
+{{- end }}

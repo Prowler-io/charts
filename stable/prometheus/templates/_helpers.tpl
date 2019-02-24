@@ -7,6 +7,19 @@ Expand the name of the chart.
 {{- end -}}
 
 {{/*
+Create unified labels for prometheus components
+*/}}
+{{- define "prometheus.common.matchLabels" -}}
+app: {{ template "prometheus.name" . }}
+release: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "prometheus.common.metaLabels" -}}
+chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+heritage: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}

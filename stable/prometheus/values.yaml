@@ -36,7 +36,7 @@ alertmanager:
   ##
   image:
     repository: prom/alertmanager
-    tag: v0.15.2
+    tag: v0.15.3
     pullPolicy: IfNotPresent
 
   ## alertmanager priorityClassName
@@ -282,7 +282,7 @@ kubeStateMetrics:
   ##
   image:
     repository: quay.io/coreos/kube-state-metrics
-    tag: v1.4.0
+    tag: v1.5.0
     pullPolicy: IfNotPresent
 
   ## kube-state-metrics priorityClassName
@@ -371,7 +371,7 @@ nodeExporter:
   ##
   image:
     repository: prom/node-exporter
-    tag: v0.16.0
+    tag: v0.17.0
     pullPolicy: IfNotPresent
 
   ## Specify if a Pod Security Policy for node-exporter must be created
@@ -484,7 +484,7 @@ server:
   ##
   image:
     repository: prom/prometheus
-    tag: v2.4.3
+    tag: v2.5.0
     pullPolicy: IfNotPresent
 
   ## prometheus server priorityClassName
@@ -514,6 +514,13 @@ server:
     ## How frequently to evaluate rules
     ##
     evaluation_interval: 1m
+
+    ## Thanos requires each Prometheus instance to have a globally unique set of identifying labels.
+    ## https://github.com/improbable-eng/thanos/blob/master/docs/getting_started.md#external-labels
+    # external_labels:
+    #   project: ""
+    #   monitor: ""
+    #   replica: '$(HOSTNAME)' # for deduplication (don't changes)
 
   ## Additional Prometheus server container arguments
   ##
@@ -654,6 +661,8 @@ server:
   ## Annotations to be added to Prometheus server pods
   ##
   podAnnotations: {}
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "10902"
     # iam.amazonaws.com/role: prometheus
 
   replicaCount: 1
@@ -709,7 +718,7 @@ pushgateway:
   ##
   image:
     repository: prom/pushgateway
-    tag: v0.5.2
+    tag: v0.6.0
     pullPolicy: IfNotPresent
 
   ## pushgateway priorityClassName
@@ -1117,3 +1126,65 @@ networkPolicy:
   ## Enable creation of NetworkPolicy resources.
   ##
   enabled: false
+
+## Thanos
+## https://github.com/improbable-eng/thanos
+##
+thanos:
+  ## Enable creation of Thanos resources.
+  ##
+  enabled: false
+
+  image:
+    repository: improbable/thanos
+    tag: v0.3.1
+    pullPolicy: IfNotPresent
+
+  ## Object Store
+  ## https://github.com/improbable-eng/thanos/blob/master/docs/storage.md
+  objStore:
+    gcsBucketName: "" # For Sidecar, Store Gateway and Compactor.
+    ## NOTE: gcs-credentials secret with single file gcs-credentials.json (GCS service account) is required.
+
+  ## Sidecar process
+  ## https://github.com/improbable-eng/thanos/blob/master/docs/components/sidecar.md
+  sidecar:
+    service:
+      type: LoadBalancer
+      loadBalancerIP: [] # HA requires exactly 2 IP addresses. If omitted, IPs are generated.
+      annotations: {}
+      # cloud.google.com/load-balancer-type: Internal
+    extraArgs: {}
+
+  ## Store Gateway process
+  ## https://github.com/improbable-eng/thanos/blob/master/docs/components/store.md
+  store:
+    enabled: true
+    service:
+      type: LoadBalancer
+      loadBalancerIP: "" # If omitted, an IP is generated.
+      # cloud.google.com/load-balancer-type: Internal
+      annotations: {}
+    extraArgs: {}
+
+  ## Query process
+  ## https://github.com/improbable-eng/thanos/blob/master/docs/components/query.md
+  query:
+    enabled: true
+    replicas: 3
+    endpoints: [] # Sidecar and Store Gateway IPs to query.
+    service:
+      loadBalancerIP: "" # If omitted, an IP is generated
+      annotations: {}
+      # cloud.google.com/load-balancer-type: Internal
+      servicePort: 80
+      type: LoadBalancer
+    extraArgs: {}
+
+  ## Compactor process
+  ## https://github.com/improbable-eng/thanos/blob/master/docs/components/compact.md
+  compact:
+    enabled: true
+    gcePersistentDiskName: "" # This GCE PD must already exist.
+    schedule: "0 0 * * *"
+    extraArgs: {}

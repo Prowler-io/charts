@@ -1,0 +1,11 @@
+{{- if and (.Values.thanos.enabled) (.Values.thanos.objStore.gcsBucketName) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gcs-bucket
+data:
+  gcs-config.yaml: |
+    type: GCS
+    config:
+      bucket: {{ .Values.thanos.objStore.gcsBucketName }}
+{{- end }}

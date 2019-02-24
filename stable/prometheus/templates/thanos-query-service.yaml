@@ -1,0 +1,47 @@
+{{- if and (.Values.thanos.enabled) (.Values.thanos.query.enabled) }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: thanos-query
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: thanos-query
+{{- with .Values.thanos.query.service.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  externalTrafficPolicy: Cluster
+{{- if .Values.thanos.query.service.clusterIP }}
+  clusterIP: {{ .Values.thanos.query.service.clusterIP }}
+{{- end }}
+{{- if .Values.thanos.query.service.externalIPs }}
+  externalIPs:
+{{ toYaml .Values.thanos.query.service.externalIPs | indent 4 }}
+{{- end }}
+{{- if .Values.thanos.query.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.thanos.query.service.loadBalancerIP }}
+{{- end }}
+{{- if .Values.thanos.query.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+  {{- range $cidr := .Values.thanos.query.service.loadBalancerSourceRanges }}
+    - {{ $cidr }}
+  {{- end }}
+{{- end }}
+  ports:
+  - name: http-query
+    port: {{ .Values.thanos.query.service.servicePort }}
+    protocol: TCP
+    targetPort: query-http
+{{- if .Values.thanos.query.service.nodePort }}
+    nodePort: {{ .Values.thanos.query.service.nodePort }}
+{{- end }}
+  selector:
+    app: {{ template "prometheus.name" . }}
+    component: thanos-query
+    release: {{ .Release.Name }}
+  type: {{ .Values.thanos.query.service.type }}
+{{- end }}
