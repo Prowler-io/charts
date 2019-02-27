@@ -7,6 +7,6 @@ data:
   thanos-sd.yaml: |-
     - targets:
     {{- range .Values.thanos.query.endpoints }}
-      - "{{ . | title }}:10901"
+      - "{{ . | lower }}:10901"
     {{- end }}
 {{- end }}
