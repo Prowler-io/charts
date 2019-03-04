@@ -8,15 +8,12 @@ metadata:
     component: thanos-store
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
-  name: thanos-store-gateway
+  name: thanos-store
 {{- with .Values.thanos.store.service.annotations }}
   annotations:
 {{ toYaml . | indent 4 }}
 {{- end }}
 spec:
-{{- if and .Values.thanos.store.service.type (ne .Values.thanos.store.service.type "ClusterIP") }}
-    externalTrafficPolicy: Cluster
-{{- end }}
 {{- if .Values.thanos.store.service.clusterIP }}
   clusterIP: {{ .Values.thanos.store.service.clusterIP }}
 {{- end }}
@@ -41,10 +38,10 @@ spec:
   {{- if .Values.thanos.store.service.nodePort }}
     nodePort: {{ .Values.thanos.store.service.nodePort }}
   {{- end }}
-  - name: grpc-store
+  - name: grpc
     port: 10901
     protocol: TCP
-    targetPort: store-grpc
+    targetPort: grpc
   {{- if .Values.thanos.store.service.nodePort }}
     nodePort: {{ .Values.thanos.store.service.nodePort }}
   {{- end }}
@@ -53,4 +50,7 @@ spec:
     component: thanos-store
     release: {{ .Release.Name }}
   type: {{ .Values.thanos.store.service.type }}
+{{- if and .Values.thanos.store.service.type (ne .Values.thanos.store.service.type "ClusterIP") }}
+  externalTrafficPolicy: Cluster
+{{- end }}
 {{- end }}

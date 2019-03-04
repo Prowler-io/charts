@@ -14,7 +14,6 @@ metadata:
 {{ toYaml . | indent 4 }}
 {{- end }}
 spec:
-  externalTrafficPolicy: Cluster
 {{- if .Values.thanos.query.service.clusterIP }}
   clusterIP: {{ .Values.thanos.query.service.clusterIP }}
 {{- end }}
@@ -44,4 +43,7 @@ spec:
     component: thanos-query
     release: {{ .Release.Name }}
   type: {{ .Values.thanos.query.service.type }}
+{{- if and .Values.thanos.query.service.type (ne .Values.thanos.query.service.type "ClusterIP") }}
+  externalTrafficPolicy: Cluster
+{{- end }}
 {{- end }}

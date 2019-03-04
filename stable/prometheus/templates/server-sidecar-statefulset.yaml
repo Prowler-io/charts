@@ -20,18 +20,22 @@ spec:
   podManagementPolicy: OrderedReady
   template:
     metadata:
-    {{- if .Values.server.podAnnotations }}
       annotations:
-{{ toYaml .Values.server.podAnnotations | indent 8 }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10902"
+    {{- with .Values.server.podAnnotations }}
+    {{ toYaml . | indent 8 }}
     {{- end }}
       labels:
         app: {{ template "prometheus.name" . }}
         component: "{{ .Values.server.name }}"
         release: {{ .Release.Name }}
+        # We will use this label to put all StoreAPis
+        # under the same headless service for
+        # SRV lookup: thanos-store-api.kube-monitoring.svc
+        thanos-store-api: "true"
     spec:
-{{- if or (.Values.server.affinity) (.Values.thanos.enabled) }}
       affinity:
-    {{- if .Values.thanos.enabled }}
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
@@ -41,11 +45,9 @@ spec:
                 values:
                 - {{ template "prometheus.name" . }}-{{ .Values.server.name }}
             topologyKey: kubernetes.io/hostname
-    {{- end }}
     {{- if .Values.server.affinity }}
 {{ toYaml .Values.server.affinity | indent 6 }}
     {{- end }}
-{{- end }}
 {{- if .Values.server.priorityClassName }}
       priorityClassName: "{{ .Values.server.priorityClassName }}"
 {{- end }}
@@ -79,6 +81,9 @@ spec:
           - --storage.tsdb.path={{ .Values.server.persistentVolume.mountPath }}
           - --web.console.libraries=/etc/prometheus/console_libraries
           - --web.console.templates=/etc/prometheus/consoles
+          # Disable compaction.
+          - --storage.tsdb.min-block-duration=2h
+          - --storage.tsdb.max-block-duration=2h
           - --web.enable-lifecycle
         {{- range $key, $value := .Values.server.extraArgs }}
           - --{{ $key }}={{ $value }}
@@ -90,7 +95,7 @@ spec:
           - --web.enable-admin-api
         {{- end }}
         ports:
-        - name: prom-http
+        - name: prometheus-http
           containerPort: 9090
         readinessProbe:
           httpGet:
@@ -113,7 +118,7 @@ spec:
           mountPath: /etc/config-shared
         - name: storage-volume
           mountPath: {{ .Values.server.persistentVolume.mountPath }}
-          subPath: "{{ .Values.server.persistentVolume.subPath }}"
+          subPath: {{ .Values.server.persistentVolume.subPath }}
       {{- range .Values.server.extraHostPathMounts }}
         - name: {{ .name }}
           mountPath: {{ .mountPath }}
@@ -135,7 +140,7 @@ spec:
       - name: thanos-sidecar
         image: "{{ .Values.thanos.image.repository }}:{{ .Values.thanos.image.tag }}"
         imagePullPolicy: "{{ .Values.thanos.image.pullPolicy }}"
-      {{- if .Values.thanos.objStore.gcsBucketName }}
+      {{- if .Values.thanos.objStore.bucketName }}
         env:
         - name: POD_NAME
           valueFrom:
@@ -154,9 +159,7 @@ spec:
         - "--cluster.disable"
         - "--reloader.config-file=/etc/config/prometheus.yml"
         - "--reloader.config-envsubst-file=/etc/config-shared/prometheus.yml"
-        - "--http-address=0.0.0.0:10902" # Listen host:port for HTTP endpoints
-        - "--grpc-address=0.0.0.0:10901" # Listen ip:port address for gRPC endpoints (StoreAPI). Make sure this address is routable from other components if you use gossip, 'grpc-advertise-address' is empty and you require cross-node connection.
-      {{- if .Values.thanos.objStore.gcsBucketName }}
+      {{- if .Values.thanos.objStore.bucketName }}
         - "--objstore.config-file=$(GOOGLE_BUCKET)"
       {{- end }}
       {{- range $key, $value := .Values.thanos.sidecar.extraArgs }}
@@ -165,7 +168,7 @@ spec:
         ports:
         - name: sidecar-http
           containerPort: 10902
-        - name: sidecar-grpc
+        - name: grpc
           containerPort: 10901
         volumeMounts:
         - name: config-volume
@@ -174,7 +177,8 @@ spec:
           mountPath: /etc/config-shared
         - name: storage-volume
           mountPath: {{ .Values.server.persistentVolume.mountPath }}
-      {{- if .Values.thanos.objStore.gcsBucketName }}
+          subPath: {{ .Values.server.persistentVolume.subPath }}
+      {{- if .Values.thanos.objStore.bucketName }}
         - name: gcs-bucket
           mountPath: /etc/store
         - name: gcs-credentials
@@ -207,7 +211,7 @@ spec:
           name: {{ if .Values.server.configMapOverrideName }}{{ .Release.Name }}-{{ .Values.server.configMapOverrideName }}{{- else }}{{ template "prometheus.server.fullname" . }}{{- end }}
       - name: config-volume-shared
         emptyDir: {}
-    {{- if .Values.thanos.objStore.gcsBucketName }}
+    {{- if .Values.thanos.objStore.bucketName }}
       - name: gcs-bucket
         configMap:
           # NOTE: gcs-bucket with single file gcs-config.yaml (GCS bucket) is required.

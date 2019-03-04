@@ -38,15 +38,18 @@ spec:
         - "--log.level=debug"
         - "--cluster.disable"
         - "--query.replica-label=replica"
-        - "--store.sd-files=$(STORE_SD_FILE)" # gRPC Store API Address of the Sidecar or Store Gateway to query
+        - "--store=dnssrv+thanos-store-gateway.kube-monitoring.svc:10901" # Discover local store APIs using DNS SRV.
+        - "--store.sd-files=$(STORE_SD_FILE)" # Get remote store APIs to query.
         - "--store.sd-interval=5m"
-        - "--query.auto-downsampling" # Enable automatic adjustment (step / 5) to what source of data should be used in store gateways if no max_source_resolution param is specified.
+        - "--query.auto-downsampling" # Enable automatic adjustment (step / 5) to what source of data should be used in stores if no max_source_resolution param is specified.
       {{- range $key, $value := .Values.thanos.query.extraArgs }}
         - --{{ $key }}={{ $value }}
       {{- end }}
         ports:
         - name: query-http
           containerPort: 10902
+        - name: grpc
+          containerPort: 10901
         volumeMounts:
         - name: store-sd
           mountPath: /etc/store-endpoints

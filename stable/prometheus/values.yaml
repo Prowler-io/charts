@@ -661,8 +661,6 @@ server:
   ## Annotations to be added to Prometheus server pods
   ##
   podAnnotations: {}
-    # prometheus.io/scrape: "true"
-    # prometheus.io/port: "10902"
     # iam.amazonaws.com/role: prometheus
 
   replicaCount: 1
@@ -1143,15 +1141,16 @@ thanos:
   ## Object Store
   ## https://github.com/improbable-eng/thanos/blob/master/docs/storage.md
   objStore:
-    gcsBucketName: "" # For Sidecar, Store Gateway and Compactor.
+    bucketName: "" # For Sidecar, Store Gateway and Compactor.
     ## NOTE: gcs-credentials secret with single file gcs-credentials.json (GCS service account) is required.
+    # $ kubectl create secret generic -n <namespace> gcs-credentials --from-file=gcs-credentials.json
 
   ## Sidecar process
   ## https://github.com/improbable-eng/thanos/blob/master/docs/components/sidecar.md
   sidecar:
     service:
-      type: LoadBalancer
-      loadBalancerIP: [] # HA requires exactly 2 IP addresses. If omitted, IPs are generated.
+      type: ClusterIP
+      loadBalancerIP: [] # HA requires exactly 2 IPs. If omitted, IPs are generated.
       annotations: {}
       # cloud.google.com/load-balancer-type: Internal
     extraArgs: {}
@@ -1161,7 +1160,7 @@ thanos:
   store:
     enabled: true
     service:
-      type: LoadBalancer
+      type: ClusterIP
       loadBalancerIP: "" # If omitted, an IP is generated.
       # cloud.google.com/load-balancer-type: Internal
       annotations: {}
@@ -1172,9 +1171,10 @@ thanos:
   query:
     enabled: true
     replicas: 3
-    endpoints: [] # Sidecar and Store Gateway IPs to query.
+    # SD of local StoreAPIs by DNS SRV lookup: thanos-store-api.<namespace>.svc.
+    endpoints: [] # Remote StoreAPIs to query.
     service:
-      loadBalancerIP: "" # If omitted, an IP is generated
+      loadBalancerIP: "" # If omitted, an IP is generated.
       annotations: {}
       # cloud.google.com/load-balancer-type: Internal
       servicePort: 80
@@ -1185,6 +1185,6 @@ thanos:
   ## https://github.com/improbable-eng/thanos/blob/master/docs/components/compact.md
   compact:
     enabled: true
-    gcePersistentDiskName: "" # This GCE PD must already exist.
+    pdName: "" # This PD must already exist.
     schedule: "0 0 * * *"
     extraArgs: {}

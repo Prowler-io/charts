@@ -23,6 +23,10 @@ spec:
         app: {{ template "prometheus.name" . }}
         component: thanos-store
         release: {{ .Release.Name }}
+        # We will use this label to put all StoreAPis
+        # under the same headless service for
+        # SRV lookup: thanos-store-api.kube-monitoring.svc
+        thanos-store-api: "true"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "10902"
@@ -41,8 +45,6 @@ spec:
         - "--log.level=debug"
         - "--data-dir=/var/thanos/store"
         - "--cluster.disable"
-        - "--http-address=0.0.0.0:10902" # Listen host:port for HTTP endpoints
-        - "--grpc-address=0.0.0.0:10901" # Listen ip:port address for gRPC endpoints (StoreAPI). Make sure this address is routable from other components if you use gossip, 'grpc-advertise-address' is empty and you require cross-node connection.
         - "--objstore.config-file=$(GOOGLE_BUCKET)"
       {{- range $key, $value := .Values.thanos.store.extraArgs }}
         - --{{ $key }}={{ $value }}
@@ -50,7 +52,7 @@ spec:
         ports:
         - name: store-http
           containerPort: 10902
-        - name: store-grpc
+        - name: grpc
           containerPort: 10901
         volumeMounts:
         - name: gcs-bucket

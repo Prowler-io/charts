@@ -37,7 +37,7 @@ spec:
   - name: http-prometheus
     port: {{ .Values.server.service.servicePort }}
     protocol: TCP
-    targetPort: prom-http
+    targetPort: prometheus-http
   {{- if .Values.server.service.nodePort }}
     nodePort: {{ .Values.server.service.nodePort }}
   {{- end }}
@@ -48,10 +48,10 @@ spec:
   {{- if .Values.thanos.sidecar.service.nodePort }}
     nodePort: {{ .Values.thanos.sidecar.service.nodePort }}
   {{- end }}
-  - name: grpc-sidecar
+  - name: grpc
     port: 10901
     protocol: TCP
-    targetPort: sidecar-grpc
+    targetPort: grpc
   {{- if .Values.thanos.sidecar.service.nodePort }}
     nodePort: {{ .Values.thanos.sidecar.service.nodePort }}
   {{- end }}

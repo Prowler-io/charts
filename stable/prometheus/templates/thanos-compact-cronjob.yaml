@@ -38,7 +38,6 @@ spec:
             - "--log.level=debug"
             - "--data-dir=/tmp/thanos-compact"
             - "--objstore.config-file=$(GOOGLE_BUCKET)"
-            - "--http-address=0.0.0.0:10902" # Listen host:port for HTTP endpoints
             - "--sync-delay=30m"
           {{- range $key, $value := .Values.thanos.compact.extraArgs }}
             - --{{ $key }}={{ $value }}
@@ -60,7 +59,7 @@ spec:
           - name: data
             # This GCE PD must already exist.
             gcePersistentDisk:
-              pdName: {{ .Values.thanos.compact.gcePersistentDiskName }}
+              pdName: {{ .Values.thanos.compact.pdName }}
               fsType: ext4
           - name: gcs-bucket
             configMap:
