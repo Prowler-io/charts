@@ -146,6 +146,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.hostIP
         - name: GOOGLE_BUCKET
           value: /etc/store/gcs-config.yaml
         - name: GOOGLE_APPLICATION_CREDENTIALS

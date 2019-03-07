@@ -36,6 +36,11 @@ spec:
         image: "{{ .Values.thanos.image.repository }}:{{ .Values.thanos.image.tag }}"
         imagePullPolicy: "{{ .Values.thanos.image.pullPolicy }}"
         env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.hostIP
         - name: GOOGLE_APPLICATION_CREDENTIALS
           value: /creds/gcs-credentials.json
         - name: GOOGLE_BUCKET
@@ -46,6 +51,8 @@ spec:
         - "--data-dir=/var/thanos/store"
         - "--cluster.disable"
         - "--objstore.config-file=$(GOOGLE_BUCKET)"
+        - "--index-cache-size=500MB"
+        - "--chunk-pool-size=2GB"
       {{- range $key, $value := .Values.thanos.store.extraArgs }}
         - --{{ $key }}={{ $value }}
       {{- end }}
