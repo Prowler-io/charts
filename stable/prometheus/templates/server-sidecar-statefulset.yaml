@@ -38,13 +38,13 @@ spec:
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
               matchExpressions:
-              - key: app
+              - key: component
                 operator: In
                 values:
-                - {{ template "prometheus.name" . }}-{{ .Values.server.name }}
-            topologyKey: kubernetes.io/hostname
+                  - {{ .Values.server.name }}
     {{- if .Values.server.affinity }}
 {{ toYaml .Values.server.affinity | indent 6 }}
     {{- end }}
